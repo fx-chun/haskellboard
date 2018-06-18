@@ -4,10 +4,19 @@ import Control.Monad
 import Data.IORef
 import Data.Time.Clock
 import FRP.Yampa
-import SDL.Input.Joystick
+
+import System.IO
+import System.IO.Error
+import Control.Exception
+import Control.Concurrent
+import Control.Concurrent.Chan
+import System.Linux.Input.Device
+import qualified System.Linux.Input.Event as EvDev
+
+import Debug.Trace
 
 data Inputs = Inputs { 
-  iThrottle       :: Throttle,
+  iThrottle       :: Event Throttle,
 
   iBUp            :: Event (),
   iBDown          :: Event (),
@@ -19,8 +28,10 @@ data Inputs = Inputs {
   iDebug          :: Int
 }
 
+type RawInputs = EvDev.Event
+
 defaultInputs = Inputs {
-  iThrottle = 0.0,
+  iThrottle = NoEvent,
 
   iBUp = NoEvent,
   iBDown = NoEvent,
@@ -49,31 +60,69 @@ main :: IO ()
 main = do
   t <- getCurrentTime
   timeRef <- newIORef t
-  reactimate initialize (sense timeRef) actuate outputsSignal
+
+  inputsChan <- initInputsThread
+
+  reactimate initialize (sense timeRef inputsChan) actuate outputsSignal
 
 initialize :: IO Inputs
 initialize = do
   putStrLn "Hello... wait for it..."
 
-  j <- numJoysticks
+  return (defaultInputs)
 
-  return (defaultInputs {
-    iDebug = fromIntegral j 
-  })
+initInputsThread :: IO (Chan (Maybe RawInputs))
+initInputsThread = do
+  inputsChan <- newChan
 
-sense :: IORef UTCTime -> Bool -> IO (Double, Maybe Inputs)
-sense timeRef _ = do
+  let 
+    loop = do
+      maybeHandle <- try $ openFile "/dev/input/event1" ReadMode
+      case maybeHandle of
+        Left e -> do
+          return (isDoesNotExistError e) -- removes type ambig.
+          writeChan inputsChan Nothing
+        Right handle -> do 
+          forever $ do
+            maybeEvent <- try $ EvDev.hReadEvent handle
+            case maybeEvent of
+              Left e -> do
+                return (isDoesNotExistError e) -- removes type ambig.
+                writeChan inputsChan Nothing
+                loop
+              Right event -> do
+                writeChan inputsChan event
+          return ()
+    in (forkIO . forever) $ loop
+
+  return (inputsChan)
+
+sense :: IORef UTCTime -> Chan (Maybe RawInputs) -> Bool -> IO (Double, Maybe Inputs)
+sense timeRef inputsChan _ = do
   now      <- getCurrentTime
   lastTime <- readIORef timeRef
   writeIORef timeRef now
   let dt = now `diffUTCTime` lastTime
 
-  inputs <- gatherInputs
-
+  rawInputs <- readChan inputsChan
+  let 
+    inputs = case rawInputs of
+      Nothing -> defaultInputs
+      Just x -> interpretInput x
+  
   return (realToFrac dt, Just inputs)
 
-gatherInputs :: IO Inputs
-gatherInputs = return (defaultInputs)
+interpretInput :: RawInputs -> Inputs
+interpretInput (EvDev.AbsEvent _ axis val) = defaultInputs {
+  iThrottle =
+    case axis of
+      abs_x -> Event $ case compare val 0 of
+                  LT -> 1.0
+                  GT -> -1.0
+                  EQ -> 0
+      _ -> NoEvent
+}
+interpretInput _ = defaultInputs
 
 actuate :: Bool -> Outputs -> IO Bool
 actuate _ outputs = do
@@ -83,6 +132,4 @@ actuate _ outputs = do
   return False
 
 outputsSignal :: SF Inputs Outputs
-outputsSignal = arr (\i -> defaultOutputs {
-  oPrintBuffer = show $ iDebug i
-}) -- todo
+outputsSignal = arr (\i -> defaultOutputs) -- todo
