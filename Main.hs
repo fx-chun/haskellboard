@@ -85,7 +85,7 @@ initInputsThread = do
           return (isDoesNotExistError e) -- removes type ambig.
           writeChan inputsChan Nothing
         Right handle -> do
-          traceIO "yes1"
+          traceIO "Connected to event interface."
           forever $ do
             maybeEvent <- try $ EvDev.hReadEvent handle
             case maybeEvent of
@@ -94,7 +94,6 @@ initInputsThread = do
                 writeChan inputsChan Nothing
                 loop
               Right event -> do
-                traceIO "yes2"
                 writeChan inputsChan event
           return ()
     in (forkIO . forever) $ loop
@@ -116,16 +115,20 @@ sense timeRef inputsChan _ = do
   
   return (realToFrac dt, Just inputs)
 
+
 interpretInput :: RawInputs -> Inputs
 interpretInput (EvDev.AbsEvent _ axis val) = defaultInputs {
   iThrottle =
     case axis of
-      abs_x -> Event $ case compare val 0 of
-                  LT -> 1.0
-                  GT -> -1.0
-                  EQ -> 0
+      abs_hat0x -> Event $ case compare val 0 of
+                    LT -> 1.0
+                    GT -> -1.0
+                    EQ -> 0
       _ -> NoEvent
 }
+  where
+    abs_hat0x = EvDev.AbsAxis 16
+    abs_hat0y = EvDev.AbsAxis 17
 interpretInput _ = defaultInputs
 
 actuate :: Bool -> Outputs -> IO Bool
