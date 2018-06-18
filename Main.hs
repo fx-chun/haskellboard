@@ -119,16 +119,17 @@ sense timeRef inputsChan _ = do
 interpretInput :: RawInputs -> Inputs
 interpretInput (EvDev.AbsEvent _ axis val) = defaultInputs {
   iThrottle =
-    case axis of
-      abs_hat0x -> Event $ case compare val 0 of
+    if axis == abs_hat0x
+      then Event $ case compare val 0 of
                     LT -> 1.0
                     GT -> -1.0
                     EQ -> 0
-      _ -> NoEvent
+      else NoEvent
 }
   where
     abs_hat0x = EvDev.AbsAxis 16
     abs_hat0y = EvDev.AbsAxis 17
+
 interpretInput _ = defaultInputs
 
 actuate :: Bool -> Outputs -> IO Bool
