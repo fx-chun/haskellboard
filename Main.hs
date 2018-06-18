@@ -77,7 +77,7 @@ initInputsThread = do
 
   let 
     loop = do
-      maybeHandle <- try $ openFile "/dev/input/event1" ReadMode
+      maybeHandle <- try $ openFile "/dev/input/event0" ReadMode
       case maybeHandle of
         Left e -> do
           return (isDoesNotExistError e) -- removes type ambig.
@@ -132,4 +132,6 @@ actuate _ outputs = do
   return False
 
 outputsSignal :: SF Inputs Outputs
-outputsSignal = arr (\i -> defaultOutputs) -- todo
+outputsSignal = arr (\i -> defaultOutputs {
+  oPrintBuffer = show (iThrottle i)
+}) -- todo
