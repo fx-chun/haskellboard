@@ -1,9 +1,11 @@
+{-# LANGUAGE Arrows #-}
 -- based on example in https://wiki.haskell.org/Yampa/reactimate
 
 import Control.Monad
 import Data.IORef
 import Data.Time.Clock
 import FRP.Yampa
+import FRP.Yampa.Geometry
 
 import System.IO
 import System.IO.Error
@@ -44,12 +46,12 @@ defaultInputs = Inputs {
 }
 
 data Outputs = Outputs { 
-  oPrintBuffer :: [Char],
+  oPrintBuffer :: Event [Char],
   oPWMOutput :: DutyCycle
 }
 
 defaultOutputs = Outputs {
-  oPrintBuffer = [],
+  oPrintBuffer = NoEvent,
   oPWMOutput = 0.0
 }
 
@@ -82,7 +84,8 @@ initInputsThread = do
         Left e -> do
           return (isDoesNotExistError e) -- removes type ambig.
           writeChan inputsChan Nothing
-        Right handle -> do 
+        Right handle -> do
+          traceIO "yes1"
           forever $ do
             maybeEvent <- try $ EvDev.hReadEvent handle
             case maybeEvent of
@@ -91,6 +94,7 @@ initInputsThread = do
                 writeChan inputsChan Nothing
                 loop
               Right event -> do
+                traceIO "yes2"
                 writeChan inputsChan event
           return ()
     in (forkIO . forever) $ loop
@@ -126,12 +130,16 @@ interpretInput _ = defaultInputs
 
 actuate :: Bool -> Outputs -> IO Bool
 actuate _ outputs = do
-  if null $ oPrintBuffer outputs
-    then return ()
-    else putStrLn $ oPrintBuffer outputs
+  if isEvent $ oPrintBuffer outputs
+    then putStrLn $ fromEvent $ oPrintBuffer outputs
+    else return ()
   return False
 
 outputsSignal :: SF Inputs Outputs
-outputsSignal = arr (\i -> defaultOutputs {
-  oPrintBuffer = show (iThrottle i)
-}) -- todo
+outputsSignal = proc i -> do
+  rec
+    let throttle = iThrottle i
+
+  returnA -< Outputs {
+    oPrintBuffer = (iThrottle i) `tag` (show throttle)
+  }
