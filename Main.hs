@@ -172,9 +172,8 @@ actuate _ outputs = do
 
 outputsSignal :: SF Inputs Outputs
 outputsSignal = proc i -> do
-  rec
-    let throttleEvent = iThrottle i
-        shoulderEvent = iBShoulder i
+  let throttleEvent = iThrottle i
+      shoulderEvent = iBShoulder i
 
   throttle <- rSwitch smoothThrottleSF -< (throttleEvent, 
                                            fmap (\x -> if x 
@@ -191,5 +190,13 @@ outputsSignal = proc i -> do
     clamp mn mx = max mn . min mx
 
     -- SF (Event Throttle) Throttle
-    smoothThrottleSF = (arr (\_ -> -1.0)) --todo implement actual smoothed throttle
+    smoothThrottleSF = proc targetUpdate -> do
+      rec
+        target <- hold 0.0 -< targetUpdate
+        let error = target - position
+        position <- integral -< (error * 0.25)
+
+      returnA -< position
+      
+    
     rawThrottleSF = hold 0.0
