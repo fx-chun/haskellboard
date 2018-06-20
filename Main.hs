@@ -177,10 +177,11 @@ outputsSignal = proc i -> do
 
   lastThrottleEvent <- hold 0.0 -< throttleEvent
 
-  throttle <- rSwitch smoothThrottleSF -< (throttleEvent, 
-                                           fmap (\x -> if x 
-                                                        then rawThrottleSF 
-                                                        else smoothThrottleSF) shoulderEvent)
+  throttle <- rSwitch (smoothThrottleSF' 0.0) -< 
+    (throttleEvent, 
+     fmap (\x -> (if x 
+                    then rawThrottleSF' 
+                    else smoothThrottleSF') lastThrottleEvent) shoulderEvent)
 
   clampedThrottle <- (arr $ clamp (-1.0) 1.0) -< throttle
 
@@ -191,14 +192,13 @@ outputsSignal = proc i -> do
   where
     clamp mn mx = max mn . min mx
 
-    -- SF (Event Throttle) Throttle
-    smoothThrottleSF = proc targetUpdate -> do
+    -- Throttle Signal Function constructors
+    smoothThrottleSF' initialThrottle = proc targetUpdate -> do
       rec
-        target <- hold lastThrottleEvent -< targetUpdate
+        target <- hold initialThrottle -< targetUpdate
         let error = target - position
         position <- integral -< (error * 1.25)
 
       returnA -< position
       
-    
-    rawThrottleSF = hold lastThrottleEvent
+    rawThrottleSF' = hold
