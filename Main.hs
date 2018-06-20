@@ -28,7 +28,7 @@ data Inputs = Inputs {
   iBShoulder      :: Event Bool,
 
   iDebug          :: Int
-}
+} deriving (Show)
 
 type RawInputs = EvDev.Event
 
@@ -48,12 +48,12 @@ defaultInputs = Inputs {
 data Outputs = Outputs { 
   oPrintBuffer :: Event [Char],
   oPWMOutput :: DutyCycle
-}
+} deriving (Show)
 
 defaultOutputs = Outputs {
   oPrintBuffer = NoEvent,
   oPWMOutput = 0.0
-}
+} 
 
 type Throttle = Double
 type DutyCycle = Double
@@ -95,7 +95,8 @@ initInputsThread = do
                 loop
               Right event -> do
                 writeChan inputsChan event
-          return ()
+            return ()
+      return ()
     in (forkIO . forever) $ loop
 
   return (inputsChan)
@@ -176,12 +177,12 @@ outputsSignal = proc i -> do
   clampedThrottle <- (arr $ clamp (-1.0) 1.0) -< throttle
 
   returnA -< Outputs {
-    oPrintBuffer = Event (show throttle),
+    oPrintBuffer = Event (show shoulderEvent),
     oPWMOutput = (((throttle * 0.5) + 1.0) / 2.0) * 1024.0
   }
   where
     clamp mn mx = max mn . min mx
 
     -- SF (Event Throttle) Throttle
-    rawThrottleSF = hold 0.0
     smoothThrottleSF = (arr (\_ -> -1.0)) --todo implement actual smoothed throttle
+    rawThrottleSF = hold 0.0
