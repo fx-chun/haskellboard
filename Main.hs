@@ -94,6 +94,8 @@ initialize = do
   putStrLn "Initializing ESCs..."
 
   pinMode pwmPin PWM_OUTPUT
+  pwmSetMode PWM_MODE_MS
+  pwmSetClock 2
   escInitRoutine
 
   putStrLn "Initialized."
