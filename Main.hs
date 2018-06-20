@@ -112,7 +112,7 @@ sense timeRef inputsChan _ = do
   writeIORef timeRef now
   let dt = now `diffUTCTime` lastTime
 
-  rawInputs <- timeout (1000 * 5) $ readChan inputsChan
+  maybeData <- timeout (1000 * 5) $ readChan inputsChan
 
   let 
     inputs = case maybeData of
