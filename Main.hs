@@ -87,7 +87,8 @@ initialize = do
   putStrLn "Hello!"
 
   let handler = do
-    pwmWrite pwmPin 0
+        pwmWrite pwmPin 0
+        raiseSignal sigTERM
   installHandler keyboardSignal (Catch handler) Nothing
 
   putStrLn "Initializing ESCs..."
