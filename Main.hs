@@ -63,8 +63,9 @@ type Throttle = Double
 ---
 pwmPin = Gpio 18
 pwmClock = 94
-pwmRange = 4096
+pwmRange = 4096 :: PwmValue
 ---
+maxOutputToEsc = 0.3
 
 escInitRoutine :: IO ()
 escInitRoutine = do
@@ -216,14 +217,16 @@ outputsSignal = proc i -> do
                     then rawThrottleSF' 
                     else smoothThrottleSF') lastThrottleEvent) shoulderEvent)
 
-  clampedThrottle <- (arr $ clamp (-1.0) 1.0) -< throttle
+  clampedThrottle <- arr $ clamp (0.0, 1.0) -< throttle
+  rescaledThrottle <- arr $ (0.0, 1.0) `rescale` (0.0, maxOutputToEsc) -< clampedThrottle
 
   returnA -< Outputs {
     oPrintBuffer = Event (show throttle),
-    oPWMOutput = round $ (*pwmRange) $ (1.0 + (clamp 0.0 1.0 throttle)) / 20.0
+    oPWMOutput = round $ (* (fromIntegral pwmRange)) $ (1.0 + rescaledThrottle) / 20.0
   }
   where
-    clamp mn mx = max mn . min mx
+    clamp (mn, mx) = max mn . min mx
+    rescale (mn, mx) (mn', mx') = (*) ((mx' - mn') / (mx - mn))
 
     -- Throttle Signal Function constructors
     smoothThrottleSF' initialThrottle = proc targetUpdate -> do
