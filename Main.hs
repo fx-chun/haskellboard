@@ -9,12 +9,13 @@ import FRP.Yampa.Geometry
 
 import System.IO
 import System.IO.Error
+import System.Linux.Input.Device
+import qualified System.Linux.Input.Event as EvDev
+import System.Timeout
+import System.Hardware.WiringPi
 import Control.Exception
 import Control.Concurrent
 import Control.Concurrent.Chan
-import System.Linux.Input.Device
-import System.Timeout
-import qualified System.Linux.Input.Event as EvDev
 
 import Debug.Trace
 
@@ -59,18 +60,37 @@ defaultOutputs = Outputs {
 type Throttle = Double
 type DutyCycle = Double
 
+---
+pwmPin = Gpio 24
+---
+
+escInitRoutine :: IO ()
+escInitRoutine = do
+  write 1024
+  wait 2
+  write 0
+  wait 1
+  where
+    write = pwmWrite pwmPin
+    wait = threadDelay (1000 * 1000 *)
+
 main :: IO ()
 main = do
   t <- getCurrentTime
   timeRef <- newIORef t
-
   inputsChan <- initInputsThread
 
   reactimate initialize (sense timeRef inputsChan) actuate outputsSignal
 
 initialize :: IO Inputs
 initialize = do
-  putStrLn "Hello... wait for it..."
+  putStrLn "Hello!"
+  putStrLn "Initializing ESCs..."
+
+  pinMode pwmPin PWM_OUTPUT
+  escInitRoutine
+
+  putStrLn "Initialized."
 
   return (defaultInputs)
 
@@ -166,7 +186,9 @@ interpretInput _ = defaultInputs
 actuate :: Bool -> Outputs -> IO Bool
 actuate _ outputs = do
   if isEvent $ oPrintBuffer outputs
-    then putStrLn $ fromEvent $ oPrintBuffer outputs
+    then do 
+      putStrLn $ fromEvent $ oPrintBuffer outputs
+      pwmWrite pwmPin $ oPWMOutput
     else return ()
   return False
 
@@ -187,7 +209,7 @@ outputsSignal = proc i -> do
 
   returnA -< Outputs {
     oPrintBuffer = Event (show throttle),
-    oPWMOutput = (((throttle * 0.5) + 1.0) / 2.0) * 1024.0
+    oPWMOutput = round $ (((throttle * 0.5) + 1.0) / 2.0) * 1024.0
   }
   where
     clamp mn mx = max mn . min mx
@@ -200,5 +222,5 @@ outputsSignal = proc i -> do
         position <- integral -< (error * 1.25)
 
       returnA -< position
-      
+
     rawThrottleSF' = hold

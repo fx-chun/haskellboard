@@ -21,7 +21,7 @@ executable haskellboard
   -- other-extensions:
   build-depends:       base >=4.9 && <4.12,
                        time<=1.9.1,
---                       wiringPi==1.0.1.1,
+                       wiringPi==1.0.1.1,
                        linux-evdev==0.3.2,
                        Yampa==0.11
   -- hs-source-dirs:
