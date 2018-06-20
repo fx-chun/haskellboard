@@ -20,12 +20,12 @@ import Debug.Trace
 data Inputs = Inputs { 
   iThrottle       :: Event Throttle,
 
-  iBUp            :: Event (),
-  iBDown          :: Event (),
-  iBLeft          :: Event (),
-  iBRight         :: Event (),
-  iBTrigger       :: Event (),
-  iBShoulder      :: Event (),
+  iBUp            :: Event Bool,
+  iBDown          :: Event Bool,
+  iBLeft          :: Event Bool,
+  iBRight         :: Event Bool,
+  iBTrigger       :: Event Bool,
+  iBShoulder      :: Event Bool,
 
   iDebug          :: Int
 }
@@ -129,6 +129,29 @@ interpretInput (EvDev.AbsEvent _ axis val) = defaultInputs {
   where
     abs_hat0x = EvDev.AbsAxis 16
     abs_hat0y = EvDev.AbsAxis 17
+interpretInput (EvDev.KeyEvent _ key state) = defaultInputs {
+    iBUp = check btn_up,
+    iBDown = check btn_down,
+    iBLeft = check btn_left,
+    iBRight = check btn_right,
+
+    iBTrigger = check btn_trigger,
+    iBShoulder = check btn_shoulder
+}
+  where
+    check x = if key == x 
+                then case state of
+                      EvDev.Depressed -> Event True
+                      EvDev.Released -> Event False
+                      _ -> NoEvent
+                else NoEvent
+
+    btn_up = EvDev.Key 306
+    btn_down = EvDev.Key 305
+    btn_left = EvDev.Key 304
+    btn_right = EvDev.Key 307
+    btn_trigger = EvDev.Key 319
+    btn_shoulder = EvDev.Key 318
 
 interpretInput _ = defaultInputs
 
@@ -142,8 +165,23 @@ actuate _ outputs = do
 outputsSignal :: SF Inputs Outputs
 outputsSignal = proc i -> do
   rec
-    let throttle = iThrottle i
+    let throttleEvent = iThrottle i
+        shoulderEvent = iBShoulder i
+
+  throttle <- rSwitch smoothThrottleSF -< (throttleEvent, 
+                                           fmap (\x -> if x 
+                                                        then rawThrottleSF 
+                                                        else smoothThrottleSF) shoulderEvent)
+
+  clampedThrottle <- (arr $ clamp (-1.0) 1.0) -< throttle
 
   returnA -< Outputs {
-    oPrintBuffer = (iThrottle i) `tag` (show throttle)
+    oPrintBuffer = Event (show throttle),
+    oPWMOutput = (((throttle * 0.5) + 1.0) / 2.0) * 1024.0
   }
+  where
+    clamp mn mx = max mn . min mx
+
+    -- SF (Event Throttle) Throttle
+    rawThrottleSF = hold 0.0
+    smoothThrottleSF = (arr (\_ -> -1.0)) --todo implement actual smoothed throttle
