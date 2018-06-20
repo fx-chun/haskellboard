@@ -90,12 +90,15 @@ initInputsThread = do
             maybeEvent <- try $ EvDev.hReadEvent handle
             case maybeEvent of
               Left e -> do
+                traceIO "Disconnected from event interface."
                 return (isDoesNotExistError e) -- removes type ambig.
                 writeChan inputsChan Nothing
                 loop
               Right event -> do
                 writeChan inputsChan event
+            threadDelay (1000 * 10)
             return ()
+      threadDelay (1000 * 10)
       return ()
     in (forkIO . forever) $ loop
 
@@ -177,7 +180,7 @@ outputsSignal = proc i -> do
   clampedThrottle <- (arr $ clamp (-1.0) 1.0) -< throttle
 
   returnA -< Outputs {
-    oPrintBuffer = Event (show shoulderEvent),
+    oPrintBuffer = Event (show i),
     oPWMOutput = (((throttle * 0.5) + 1.0) / 2.0) * 1024.0
   }
   where
