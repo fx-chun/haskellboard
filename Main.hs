@@ -13,6 +13,7 @@ import Control.Exception
 import Control.Concurrent
 import Control.Concurrent.Chan
 import System.Linux.Input.Device
+import System.Timeout
 import qualified System.Linux.Input.Event as EvDev
 
 import Debug.Trace
@@ -111,11 +112,14 @@ sense timeRef inputsChan _ = do
   writeIORef timeRef now
   let dt = now `diffUTCTime` lastTime
 
-  rawInputs <- readChan inputsChan
+  rawInputs <- timeout (1000 * 5) $ readChan inputsChan
+
   let 
-    inputs = case rawInputs of
+    inputs = case maybeData of
       Nothing -> defaultInputs
-      Just x -> interpretInput x
+      Just maybeRawInputs -> case maybeRawInputs of
+                              Nothing -> defaultInputs
+                              Just rawInputs -> interpretInput rawInputs
   
   return (realToFrac dt, Just inputs)
 
@@ -180,7 +184,7 @@ outputsSignal = proc i -> do
   clampedThrottle <- (arr $ clamp (-1.0) 1.0) -< throttle
 
   returnA -< Outputs {
-    oPrintBuffer = Event (show i),
+    oPrintBuffer = Event (show throttle),
     oPWMOutput = (((throttle * 0.5) + 1.0) / 2.0) * 1024.0
   }
   where
