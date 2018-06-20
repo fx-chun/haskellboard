@@ -62,6 +62,8 @@ type Throttle = Double
 
 ---
 pwmPin = Gpio 18
+pwmClock = 94
+pwmRange = 4096
 ---
 
 escInitRoutine :: IO ()
@@ -95,7 +97,8 @@ initialize = do
 
   pinMode pwmPin PWM_OUTPUT
   pwmSetMode PWM_MODE_MS
-  pwmSetClock 2
+  pwmSetClock pwmClock
+  pwmSetRange pwmRange
   escInitRoutine
 
   putStrLn "Initialized."
@@ -217,7 +220,7 @@ outputsSignal = proc i -> do
 
   returnA -< Outputs {
     oPrintBuffer = Event (show throttle),
-    oPWMOutput = round $ (clamp 0.0 1.0 throttle) * 1024.0
+    oPWMOutput = round $ (*pwmRange) $ (1.0 + (clamp 0.0 1.0 throttle)) / 20.0
   }
   where
     clamp mn mx = max mn . min mx
