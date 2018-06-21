@@ -1,0 +1,12 @@
+[Unit]
+Description=Start haskellboard
+
+[Service]
+WorkingDirectory=/home/pi/haskellboard
+Type=forking
+User=root
+ExecStart=/bin/bash start.sh
+KillMode=process
+
+[Install]
+WantedBy=multi-user.target

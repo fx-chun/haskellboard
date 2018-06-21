@@ -211,6 +211,8 @@ outputsSignal = proc i -> do
 
   lastThrottleEvent <- hold 0.0 -< throttleEvent
 
+  -- todo add safeties
+
   throttle <- rSwitch (smoothThrottleSF' 0.0) -< 
     (throttleEvent, 
      fmap (\x -> (if x 
