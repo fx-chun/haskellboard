@@ -73,21 +73,19 @@ type Throttle = Double
 
 ---
 pwmPin = Gpio 18
+statusLedPin = Gpio 12
 pwmClock = 94
 pwmRange = 4096 :: PwmValue
 ---
-maxOutputToEsc = 0.5
+rampedThrottleP = 0.55
+maxOutputToEsc = 0.4
 minOutputToEsc = 0.05
 
-escInitRoutine :: IO ()
-escInitRoutine = do
-  write 1024
-  wait 2
-  write 0
-  wait 1
-  where
-    write = pwmWrite pwmPin
-    wait = threadDelay . (1000 * 1000 *)
+statusLedOn :: IO ()
+statusLedOn = pwmWrite statusLedPin pwmRange
+
+statusLedOff :: IO ()
+statusLedOff = pwmWrite statusLedPin 0
 
 main :: IO ()
 main = do
@@ -103,16 +101,17 @@ initialize = do
 
   let handler = do
         pwmWrite pwmPin 0
+        statusLedOff
         raiseSignal sigTERM
   installHandler keyboardSignal (Catch handler) Nothing
 
-  putStrLn "Initializing ESCs..."
+  putStrLn "Initializing PWM..."
 
   pinMode pwmPin PWM_OUTPUT
+  pinMode statusLedPin PWM_OUTPUT
   pwmSetMode PWM_MODE_MS
   pwmSetClock pwmClock
   pwmSetRange pwmRange
-  --escInitRoutine
 
   putStrLn "Initialized."
 
@@ -124,10 +123,12 @@ initInputsThread = do
 
   let 
     loop = do
+      statusLedOff
       maybeHandle <- try $ openFile "/dev/input/event0" ReadMode
       case maybeHandle of
         Right handle -> do
           traceIO "Connected to event interface."
+          statusLedOn
           forever $ do
             maybeEvent <- try $ EvDev.hReadEvent handle
             case maybeEvent of
@@ -257,7 +258,7 @@ outputsSignal = proc i -> do
     rampedThrottleSF initialThrottle = proc target -> do
       rec
         let error = target - position
-        position <- integral -< (error * 1.25)
+        position <- integral -< (error * rampedThrottleP)
 
       returnA -< position
 
