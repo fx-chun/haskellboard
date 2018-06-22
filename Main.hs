@@ -212,7 +212,7 @@ outputsSignal = proc i -> do
 
   lastThrottleEvent <- hold 0.0 -< throttleEvent
 
-  calculatedThrottle <- rSwitch noThrottleSF' -< 
+  calculatedThrottle <- rSwitch (noThrottleSF' ()) -< 
     (throttleEvent, 
      fmap (\x -> (if x 
                     then rawThrottleSF' 
