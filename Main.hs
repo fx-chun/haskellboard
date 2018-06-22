@@ -254,9 +254,8 @@ outputsSignal = proc i -> do
     rescale (mn, mx) (mn', mx') = (*) ((mx' - mn') / (mx - mn))
 
     -- Throttle Signal Function constructors
-    rampedThrottleSF initialThrottle = proc targetUpdate -> do
+    rampedThrottleSF initialThrottle = proc target -> do
       rec
-        target <- hold initialThrottle -< targetUpdate
         let error = target - position
         position <- integral -< (error * 1.25)
 
