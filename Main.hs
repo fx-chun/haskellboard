@@ -39,6 +39,7 @@ data MaybeRawEvents = InputDisconnected
 
 defaultInputs = Inputs {
   iNewUpdate = NoEvent,
+  iDisconnected = NoEvent,
 
   iJoystick = NoEvent,
 
@@ -132,12 +133,14 @@ initInputsThread = do
             case maybeEvent of
               Right (Just event) -> do
                 writeChan inputsChan (RawInput event)
-              _ -> do
+              Left e -> do
+                return (isDoesNotExistError e) -- removes type ambig.
                 writeChan inputsChan InputDisconnected
                 loop
             threadDelay (1000 * 20)
             return ()
-        _ -> do
+        Left e -> do
+          return (isDoesNotExistError e) -- removes type ambig.
           writeChan inputsChan InputDisconnected
       threadDelay (1000 * 20)
       return ()
@@ -215,7 +218,7 @@ outputsSignal :: SF Inputs Outputs
 outputsSignal = proc i -> do
   let userJoystickEvent = iJoystick i
 
-  userConnected <- (hold False) <<< (arr $ fmap not) -< iDisconnected i
+  userConnected <- (arr $ not . isEvent) -< iDisconnected i
   userJoystickPosition <- hold 0.0 -< userJoystickEvent
   userTrigger <- hold False -< iBTrigger i
   userUp      <- hold False -< iBUp i
