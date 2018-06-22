@@ -125,22 +125,20 @@ initInputsThread = do
     loop = do
       maybeHandle <- try $ openFile "/dev/input/event0" ReadMode
       case maybeHandle of
-        Left e -> do
-          return (isDoesNotExistError e) -- removes type ambig.
-          writeChan inputsChan InputDisconnected
         Right handle -> do
           traceIO "Connected to event interface."
           forever $ do
             maybeEvent <- try $ EvDev.hReadEvent handle
             case maybeEvent of
-              Left e -> do
-                return (isDoesNotExistError e) -- removes type ambig.
+              Right (Just event) -> do
+                writeChan inputsChan (RawInput event)
+              _ -> do
                 writeChan inputsChan InputDisconnected
                 loop
-              Right event -> do
-                writeChan inputsChan (RawInput event)
             threadDelay (1000 * 20)
             return ()
+        _ -> do
+          writeChan inputsChan InputDisconnected
       threadDelay (1000 * 20)
       return ()
     in (forkIO . forever) $ loop
@@ -158,7 +156,7 @@ sense timeRef inputsChan _ = do
 
   let 
     inputs = case maybeData of
-      Nothing -> defaultOutputs
+      Nothing -> defaultInputs
       Just maybeRawEvents -> case maybeRawEvents of
                               InputDisconnected -> resetInputs
                               RawInput event -> interpretInput event
@@ -217,12 +215,12 @@ outputsSignal :: SF Inputs Outputs
 outputsSignal = proc i -> do
   let userJoystickEvent = iJoystick i
 
-  userConnected <- (hold False) <<< (arr $ fmap not) -< iDisconnected
+  userConnected <- (hold False) <<< (arr $ fmap not) -< iDisconnected i
   userJoystickPosition <- hold 0.0 -< userJoystickEvent
-  userTrigger <- hold False -< iTrigger i
-  userUp      <- hold False -< iUp i
-  userLeft    <- hold False -< iLeft i
-  userDown    <- hold False -< iDown i
+  userTrigger <- hold False -< iBTrigger i
+  userUp      <- hold False -< iBUp i
+  userLeft    <- hold False -< iBLeft i
+  userDown    <- hold False -< iBDown i
 
   clampedThrottle <- arr $ clamp (0.0, 1.0) -< userJoystickPosition
   rescaledThrottle <- arr $ (0.0, 1.0) `rescale` (0.0, maxOutputToEsc) -< clampedThrottle
@@ -233,12 +231,13 @@ outputsSignal = proc i -> do
 
   actualOutput <- rSwitch (constant 0.0) -< 
     (NoEvent, 
-     fmap (\_ -> if userTrigger && userConnected
-                  then if | userUp     -> constant 1.0
-                          | userLeft   -> constant 0.5
-                          | userDown   -> constant 0.0
-                          | otherwise -> hold 0.0 calculatedThrottle
-                  else constant 0.0) (iIsUpdate i)
+     fmap (\_ -> constant $ 
+                 if userTrigger && userConnected
+                  then if | userUp     -> 1.0
+                          | userLeft   -> 0.5
+                          | userDown   -> 0.0
+                          | otherwise  -> calculatedThrottle
+                  else 0.0) (iNewUpdate i)
     )
 
   printMessageEvent <- repeatedly 0.3 () -< ()
