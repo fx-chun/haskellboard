@@ -76,7 +76,7 @@ pwmPin = Gpio 18
 pwmClock = 94
 pwmRange = 4096 :: PwmValue
 ---
-maxOutputToEsc = 0.8
+maxOutputToEsc = 0.5
 minOutputToEsc = 0.05
 
 escInitRoutine :: IO ()
