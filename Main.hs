@@ -1,4 +1,4 @@
-{-# LANGUAGE Arrows #-}
+{-# LANGUAGE Arrows MultiWayIf #-}
 -- based on example in https://wiki.haskell.org/Yampa/reactimate
 
 import Control.Monad
@@ -21,7 +21,9 @@ import Control.Concurrent.Chan
 import Debug.Trace
 
 data Inputs = Inputs { 
-  iThrottle       :: Event Throttle,
+  iIsUpdate       :: Event (),
+
+  iJoystick       :: Event Throttle,
 
   iBUp            :: Event Bool,
   iBDown          :: Event Bool,
@@ -36,7 +38,9 @@ data Inputs = Inputs {
 type RawInputs = EvDev.Event
 
 defaultInputs = Inputs {
-  iThrottle = NoEvent,
+  iIsUpdate = NoEvent,
+
+  iJoystick = NoEvent,
 
   iBUp = NoEvent,
   iBDown = NoEvent,
@@ -46,6 +50,10 @@ defaultInputs = Inputs {
   iBShoulder = NoEvent,
 
   iDebug = 0
+}
+
+newInputs = defaultInputs {
+  iIsUpdate = Event ()
 }
 
 data Outputs = Outputs { 
@@ -158,8 +166,8 @@ sense timeRef inputsChan _ = do
 
 
 interpretInput :: RawInputs -> Inputs
-interpretInput (EvDev.AbsEvent _ axis val) = defaultInputs {
-  iThrottle =
+interpretInput (EvDev.AbsEvent _ axis val) = newInputs {
+  iJoystick =
     if axis == abs_hat0x
       then Event $ case compare val 0 of
                     LT -> 1.0
@@ -170,7 +178,7 @@ interpretInput (EvDev.AbsEvent _ axis val) = defaultInputs {
   where
     abs_hat0x = EvDev.AbsAxis 16
     abs_hat0y = EvDev.AbsAxis 17
-interpretInput (EvDev.KeyEvent _ key state) = defaultInputs {
+interpretInput (EvDev.KeyEvent _ key state) = newInputs {
     iBUp = check btn_up,
     iBDown = check btn_down,
     iBLeft = check btn_left,
@@ -193,7 +201,6 @@ interpretInput (EvDev.KeyEvent _ key state) = defaultInputs {
     btn_right = EvDev.Key 307
     btn_trigger = EvDev.Key 319
     btn_shoulder = EvDev.Key 318
-
 interpretInput _ = defaultInputs
 
 actuate :: Bool -> Outputs -> IO Bool
@@ -207,30 +214,32 @@ actuate _ outputs = do
 
 outputsSignal :: SF Inputs Outputs
 outputsSignal = proc i -> do
-  let throttleEvent = iThrottle i
-      triggerEvent = iBTrigger i
+  let userJoystickEvent = iJoystick i
 
-  lastThrottleEvent <- hold 0.0 -< throttleEvent
+  userJoystickPosition <- hold 0.0 -< userJoystickEvent
 
-  calculatedThrottle <- rSwitch (noThrottleSF' ()) -< 
-    (throttleEvent, 
-     fmap (\x -> (if x 
-                    then rawThrottleSF' 
-                    else noThrottleSF') lastThrottleEvent) triggerEvent
-    )
-
-  clampedThrottle <- arr $ clamp (0.0, 1.0) -< calculatedThrottle
+  clampedThrottle <- arr $ clamp (0.0, 1.0) -< userJoystickPosition
   rescaledThrottle <- arr $ (0.0, 1.0) `rescale` (0.0, maxOutputToEsc) -< clampedThrottle
-  minimumThrottle <- arr $ (\throttle -> if throttle < minOutputToEsc
-                                           then 0
-                                           else throttle) -< rescaledThrottle
-  actualThrottle <- identity -< minimumThrottle
+  minFilteredThrottle <- arr $ (\throttle -> if throttle < minOutputToEsc
+                                              then 0
+                                              else throttle) -< rescaledThrottle
+  calculatedThrottle <- identity -< minFilteredThrottle
+
+  actualOutput <- rSwitch (constant 0.0) -< 
+    (NoEvent, 
+     fmap (\_ -> if iBTrigger i 
+                   then if | iUp i     -> constant 1.0
+                           | iLeft i   -> constant 0.5
+                           | iDown i   -> constant 0.0
+                           | otherwise -> hold 0.0 calculatedThrottle
+                   else constant 0.0) (iIsUpdate i)
+    )
 
   printMessageEvent <- repeatedly 0.3 () -< ()
 
   returnA -< Outputs {
-    oPrintBuffer = printMessageEvent `tag` (show actualThrottle),
-    oPWMOutput = round $ (* (fromIntegral pwmRange)) $ (1.0 + actualThrottle) / 20.0
+    oPrintBuffer = printMessageEvent `tag` (show actualOutput),
+    oPWMOutput = round $ (* (fromIntegral pwmRange)) $ (1.0 + actualOutput) / 20.0
   }
   where
     clamp (mn, mx) = max mn . min mx
@@ -245,5 +254,4 @@ outputsSignal = proc i -> do
 
     --   returnA -< position
 
-    noThrottleSF' _ = constant 0.0
-    rawThrottleSF' = hold
+    
