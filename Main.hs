@@ -31,7 +31,7 @@ data Inputs = Inputs {
   iBLeft          :: Event Bool,
   iBRight         :: Event Bool,
   iBTrigger       :: Event Bool,
-  iBShoulder      :: Event Bool,
+  iBShoulder      :: Event Bool
 } deriving (Show)
 
 data MaybeRawEvents = InputDisconnected
@@ -47,9 +47,7 @@ defaultInputs = Inputs {
   iBLeft = NoEvent,
   iBRight = NoEvent,
   iBTrigger = NoEvent,
-  iBShoulder = NoEvent,
-
-  iDebug = 0
+  iBShoulder = NoEvent
 }
 
 newInputs = defaultInputs {
@@ -119,7 +117,7 @@ initialize = do
 
   return (defaultInputs)
 
-initInputsThread :: IO (Chan (Maybe RawInputs))
+initInputsThread :: IO (Chan (MaybeRawEvents))
 initInputsThread = do
   inputsChan <- newChan
 
@@ -149,7 +147,7 @@ initInputsThread = do
 
   return (inputsChan)
 
-sense :: IORef UTCTime -> Chan (Maybe RawInputs) -> Bool -> IO (Double, Maybe Inputs)
+sense :: IORef UTCTime -> Chan (MaybeRawEvents) -> Bool -> IO (Double, Maybe Inputs)
 sense timeRef inputsChan _ = do
   now      <- getCurrentTime
   lastTime <- readIORef timeRef
@@ -168,7 +166,7 @@ sense timeRef inputsChan _ = do
   return (realToFrac dt, Just inputs)
 
 
-interpretInput :: RawInputs -> Inputs
+interpretInput :: EvDev.Event -> Inputs
 interpretInput (EvDev.AbsEvent _ axis val) = newInputs {
   iJoystick =
     if axis == abs_hat0x
