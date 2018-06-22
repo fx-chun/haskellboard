@@ -222,8 +222,10 @@ outputsSignal = proc i -> do
   clampedThrottle <- arr $ clamp (0.0, 1.0) -< throttle
   rescaledThrottle <- arr $ (0.0, 1.0) `rescale` (0.0, maxOutputToEsc) -< clampedThrottle
 
+  printMessageEvent <- repeatedly 0.3 () -< ()
+
   returnA -< Outputs {
-    oPrintBuffer = Event (show throttle),
+    oPrintBuffer = printMessageEvent `tag` (show throttle),
     oPWMOutput = round $ (* (fromIntegral pwmRange)) $ (1.0 + rescaledThrottle) / 20.0
   }
   where
@@ -235,7 +237,7 @@ outputsSignal = proc i -> do
       rec
         target <- hold initialThrottle -< targetUpdate
         let error = target - position
-        position <- integral -< (error * 1.25)
+        position <- integral -< (error * 1.35)
 
       returnA -< position
 

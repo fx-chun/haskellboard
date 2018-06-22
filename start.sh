@@ -1,8 +1,8 @@
 #!/bin/bash
 
-./dist/build/haskellboard/haskellboard
+./dist/build/haskellboard/haskellboard &
 
 while true; do
-    sleep 3
-    echo -e 'power on\nconnect 60\t \nquit' | bluetoothctl
+    sleep 1;
+    { echo -n; echo -e 'power on\n'; sleep 1; echo -e 'connect \t\n'; sleep 1; echo -e 'quit\n'; } | bluetoothctl; 
 done
