@@ -225,12 +225,12 @@ outputsSignal = proc i -> do
   minimumThrottle <- arr $ (\throttle -> if throttle < minOutputToEsc
                                            then 0
                                            else throttle) -< rescaledThrottle
-  actualThrottle <- identitiy -< minimumThrottle
+  actualThrottle <- identity -< minimumThrottle
 
   printMessageEvent <- repeatedly 0.3 () -< ()
 
   returnA -< Outputs {
-    oPrintBuffer = printMessageEvent `tag` (show throttle),
+    oPrintBuffer = printMessageEvent `tag` (show actualThrottle),
     oPWMOutput = round $ (* (fromIntegral pwmRange)) $ (1.0 + actualThrottle) / 20.0
   }
   where
