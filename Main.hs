@@ -82,10 +82,10 @@ maxOutputToEsc = 0.4
 minOutputToEsc = 0.05
 
 statusLedOn :: IO ()
-statusLedOn = pwmWrite statusLedPin pwmRange
+statusLedOn = digitalWrite statusLedPin HIGH
 
 statusLedOff :: IO ()
-statusLedOff = pwmWrite statusLedPin 0
+statusLedOff = digitalWrite statusLedPin LOW
 
 main :: IO ()
 main = do
@@ -108,7 +108,10 @@ initialize = do
   putStrLn "Initializing PWM..."
 
   pinMode pwmPin PWM_OUTPUT
-  pinMode statusLedPin PWM_OUTPUT
+
+  pullUpDnControl statusLedPin PUD_UP
+  pinMode statusLedPin OUTPUT
+
   pwmSetMode PWM_MODE_MS
   pwmSetClock pwmClock
   pwmSetRange pwmRange
