@@ -65,7 +65,8 @@ pwmPin = Gpio 18
 pwmClock = 94
 pwmRange = 4096 :: PwmValue
 ---
-maxOutputToEsc = 0.3
+maxOutputToEsc = 0.4
+minOutputToEsc = 0.05
 
 escInitRoutine :: IO ()
 escInitRoutine = do
@@ -100,7 +101,7 @@ initialize = do
   pwmSetMode PWM_MODE_MS
   pwmSetClock pwmClock
   pwmSetRange pwmRange
-  escInitRoutine
+  --escInitRoutine
 
   putStrLn "Initialized."
 
@@ -213,20 +214,24 @@ outputsSignal = proc i -> do
 
   -- todo add safeties
 
-  throttle <- rSwitch (smoothThrottleSF' 0.0) -< 
+  calculatedThrottle <- rSwitch (smoothThrottleSF' 0.0) -< 
     (throttleEvent, 
      fmap (\x -> (if x 
                     then rawThrottleSF' 
                     else smoothThrottleSF') lastThrottleEvent) shoulderEvent)
 
-  clampedThrottle <- arr $ clamp (0.0, 1.0) -< throttle
+  clampedThrottle <- arr $ clamp (0.0, 1.0) -< calculatedThrottle
   rescaledThrottle <- arr $ (0.0, 1.0) `rescale` (0.0, maxOutputToEsc) -< clampedThrottle
+  minimumThrottle <- arr $ (\throttle -> if throttle < minOutputToEsc
+                                           then 0
+                                           else throttle) -< rescaledThrottle
+  actualThrottle <- identitiy -< minimumThrottle
 
   printMessageEvent <- repeatedly 0.3 () -< ()
 
   returnA -< Outputs {
     oPrintBuffer = printMessageEvent `tag` (show throttle),
-    oPWMOutput = round $ (* (fromIntegral pwmRange)) $ (1.0 + rescaledThrottle) / 20.0
+    oPWMOutput = round $ (* (fromIntegral pwmRange)) $ (1.0 + actualThrottle) / 20.0
   }
   where
     clamp (mn, mx) = max mn . min mx
