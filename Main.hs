@@ -1,4 +1,4 @@
-{-# LANGUAGE Arrows MultiWayIf #-}
+{-# LANGUAGE Arrows, MultiWayIf #-}
 -- based on example in https://wiki.haskell.org/Yampa/reactimate
 
 import Control.Monad
@@ -21,7 +21,8 @@ import Control.Concurrent.Chan
 import Debug.Trace
 
 data Inputs = Inputs { 
-  iIsUpdate       :: Event (),
+  iNewUpdate      :: Event (),
+  iDisconnected   :: Event (), 
 
   iJoystick       :: Event Throttle,
 
@@ -31,14 +32,13 @@ data Inputs = Inputs {
   iBRight         :: Event Bool,
   iBTrigger       :: Event Bool,
   iBShoulder      :: Event Bool,
-
-  iDebug          :: Int
 } deriving (Show)
 
-type RawInputs = EvDev.Event
+data MaybeRawEvents = InputDisconnected
+                    | RawInput EvDev.Event
 
 defaultInputs = Inputs {
-  iIsUpdate = NoEvent,
+  iNewUpdate = NoEvent,
 
   iJoystick = NoEvent,
 
@@ -53,7 +53,11 @@ defaultInputs = Inputs {
 }
 
 newInputs = defaultInputs {
-  iIsUpdate = Event ()
+  iNewUpdate = Event ()
+}
+
+resetInputs = defaultInputs {
+  iDisconnected = Event ()
 }
 
 data Outputs = Outputs { 
@@ -125,19 +129,18 @@ initInputsThread = do
       case maybeHandle of
         Left e -> do
           return (isDoesNotExistError e) -- removes type ambig.
-          writeChan inputsChan Nothing
+          writeChan inputsChan InputDisconnected
         Right handle -> do
           traceIO "Connected to event interface."
           forever $ do
             maybeEvent <- try $ EvDev.hReadEvent handle
             case maybeEvent of
               Left e -> do
-                traceIO "Disconnected from event interface."
                 return (isDoesNotExistError e) -- removes type ambig.
-                writeChan inputsChan Nothing
+                writeChan inputsChan InputDisconnected
                 loop
               Right event -> do
-                writeChan inputsChan event
+                writeChan inputsChan (RawInput event)
             threadDelay (1000 * 20)
             return ()
       threadDelay (1000 * 20)
@@ -157,10 +160,10 @@ sense timeRef inputsChan _ = do
 
   let 
     inputs = case maybeData of
-      Nothing -> defaultInputs
-      Just maybeRawInputs -> case maybeRawInputs of
-                              Nothing -> defaultInputs
-                              Just rawInputs -> interpretInput rawInputs
+      Nothing -> defaultOutputs
+      Just maybeRawEvents -> case maybeRawEvents of
+                              InputDisconnected -> resetInputs
+                              RawInput event -> interpretInput event
   
   return (realToFrac dt, Just inputs)
 
@@ -216,7 +219,12 @@ outputsSignal :: SF Inputs Outputs
 outputsSignal = proc i -> do
   let userJoystickEvent = iJoystick i
 
+  userConnected <- (hold False) <<< (arr $ fmap not) -< iDisconnected
   userJoystickPosition <- hold 0.0 -< userJoystickEvent
+  userTrigger <- hold False -< iTrigger i
+  userUp      <- hold False -< iUp i
+  userLeft    <- hold False -< iLeft i
+  userDown    <- hold False -< iDown i
 
   clampedThrottle <- arr $ clamp (0.0, 1.0) -< userJoystickPosition
   rescaledThrottle <- arr $ (0.0, 1.0) `rescale` (0.0, maxOutputToEsc) -< clampedThrottle
@@ -227,12 +235,12 @@ outputsSignal = proc i -> do
 
   actualOutput <- rSwitch (constant 0.0) -< 
     (NoEvent, 
-     fmap (\_ -> if iBTrigger i 
-                   then if | iUp i     -> constant 1.0
-                           | iLeft i   -> constant 0.5
-                           | iDown i   -> constant 0.0
-                           | otherwise -> hold 0.0 calculatedThrottle
-                   else constant 0.0) (iIsUpdate i)
+     fmap (\_ -> if userTrigger && userConnected
+                  then if | userUp     -> constant 1.0
+                          | userLeft   -> constant 0.5
+                          | userDown   -> constant 0.0
+                          | otherwise -> hold 0.0 calculatedThrottle
+                  else constant 0.0) (iIsUpdate i)
     )
 
   printMessageEvent <- repeatedly 0.3 () -< ()
