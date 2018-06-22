@@ -65,7 +65,7 @@ pwmPin = Gpio 18
 pwmClock = 94
 pwmRange = 4096 :: PwmValue
 ---
-maxOutputToEsc = 0.4
+maxOutputToEsc = 0.6
 minOutputToEsc = 0.05
 
 escInitRoutine :: IO ()
@@ -130,9 +130,9 @@ initInputsThread = do
                 loop
               Right event -> do
                 writeChan inputsChan event
-            threadDelay (1000 * 10)
+            threadDelay (1000 * 20)
             return ()
-      threadDelay (1000 * 10)
+      threadDelay (1000 * 20)
       return ()
     in (forkIO . forever) $ loop
 
@@ -145,7 +145,7 @@ sense timeRef inputsChan _ = do
   writeIORef timeRef now
   let dt = now `diffUTCTime` lastTime
 
-  maybeData <- timeout (1000 * 5) $ readChan inputsChan
+  maybeData <- timeout (1000 * 10) $ readChan inputsChan
 
   let 
     inputs = case maybeData of
@@ -208,17 +208,16 @@ actuate _ outputs = do
 outputsSignal :: SF Inputs Outputs
 outputsSignal = proc i -> do
   let throttleEvent = iThrottle i
-      shoulderEvent = iBShoulder i
+      triggerEvent = iBTrigger i
 
   lastThrottleEvent <- hold 0.0 -< throttleEvent
 
-  -- todo add safeties
-
-  calculatedThrottle <- rSwitch (smoothThrottleSF' 0.0) -< 
+  calculatedThrottle <- rSwitch noThrottleSF' -< 
     (throttleEvent, 
      fmap (\x -> (if x 
                     then rawThrottleSF' 
-                    else smoothThrottleSF') lastThrottleEvent) shoulderEvent)
+                    else noThrottleSF') lastThrottleEvent) triggerEvent
+    )
 
   clampedThrottle <- arr $ clamp (0.0, 1.0) -< calculatedThrottle
   rescaledThrottle <- arr $ (0.0, 1.0) `rescale` (0.0, maxOutputToEsc) -< clampedThrottle
@@ -238,12 +237,13 @@ outputsSignal = proc i -> do
     rescale (mn, mx) (mn', mx') = (*) ((mx' - mn') / (mx - mn))
 
     -- Throttle Signal Function constructors
-    smoothThrottleSF' initialThrottle = proc targetUpdate -> do
-      rec
-        target <- hold initialThrottle -< targetUpdate
-        let error = target - position
-        position <- integral -< (error * 1.35)
+    -- smoothThrottleSF' initialThrottle = proc targetUpdate -> do
+    --   rec
+    --     target <- hold initialThrottle -< targetUpdate
+    --     let error = target - position
+    --     position <- integral -< (error * 1.35)
 
-      returnA -< position
+    --   returnA -< position
 
+    noThrottleSF' _ = constant 0.0
     rawThrottleSF' = hold
