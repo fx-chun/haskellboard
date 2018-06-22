@@ -225,7 +225,8 @@ outputsSignal = proc i -> do
   userLeft    <- hold False -< iBLeft i
   userDown    <- hold False -< iBDown i
 
-  clampedThrottle <- arr $ clamp (0.0, 1.0) -< userJoystickPosition
+  rampedThrottle <- rampedThrottleSF 0.0 -< userJoystickPosition
+  clampedThrottle <- arr $ clamp (0.0, 1.0) -< rampedThrottle
   rescaledThrottle <- arr $ (0.0, 1.0) `rescale` (0.0, maxOutputToEsc) -< clampedThrottle
   minFilteredThrottle <- arr $ (\throttle -> if throttle < minOutputToEsc
                                               then 0
@@ -234,13 +235,12 @@ outputsSignal = proc i -> do
 
   actualOutput <- rSwitch (constant 0.0) -< 
     (NoEvent, 
-     fmap (\_ -> constant $ 
-                 if userTrigger && userConnected
-                  then if | userUp     -> 1.0
-                          | userLeft   -> 0.5
-                          | userDown   -> 0.0
-                          | otherwise  -> calculatedThrottle
-                  else 0.0) (iNewUpdate i)
+     fmap (\_ -> if userTrigger && userConnected
+                  then if | userUp     -> constant 1.0
+                          | userLeft   -> constant 0.5
+                          | userDown   -> constant 0.0
+                          | otherwise  -> arr $ (\_ -> calculatedThrottle)
+                  else constant 0.0) (iNewUpdate i)
     )
 
   printMessageEvent <- repeatedly 0.3 () -< ()
@@ -254,12 +254,12 @@ outputsSignal = proc i -> do
     rescale (mn, mx) (mn', mx') = (*) ((mx' - mn') / (mx - mn))
 
     -- Throttle Signal Function constructors
-    -- smoothThrottleSF' initialThrottle = proc targetUpdate -> do
-    --   rec
-    --     target <- hold initialThrottle -< targetUpdate
-    --     let error = target - position
-    --     position <- integral -< (error * 1.35)
+    rampedThrottleSF initialThrottle = proc targetUpdate -> do
+      rec
+        target <- hold initialThrottle -< targetUpdate
+        let error = target - position
+        position <- integral -< (error * 1.25)
 
-    --   returnA -< position
+      returnA -< position
 
     
