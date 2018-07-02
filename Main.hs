@@ -77,9 +77,11 @@ statusLedPin = Gpio 12
 pwmClock = 94
 pwmRange = 4096 :: PwmValue
 ---
-rampedThrottleP = 0.55
-maxOutputToEsc = 0.4
-minOutputToEsc = 0.05
+-- rampedThrottleP = 0.55
+throttleStepPerSecond = 0.33
+---
+maxOutputToEsc = 0.5
+minOutputToEsc = 0.02
 
 statusLedOn :: IO ()
 statusLedOn = digitalWrite statusLedPin HIGH
@@ -261,7 +263,9 @@ outputsSignal = proc i -> do
     rampedThrottleSF initialThrottle = proc target -> do
       rec
         let error = target - position
-        position <- integral -< (error * rampedThrottleP)
+
+        -- position <- integral -< (error * rampedThrottleP)
+        position <- integral -< (signum error * throttleStepPerSecond)
 
       returnA -< position
 
