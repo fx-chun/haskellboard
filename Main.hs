@@ -78,10 +78,10 @@ pwmClock = 94
 pwmRange = 4096 :: PwmValue
 ---
 -- rampedThrottleP = 0.55
-throttleStepPerSecond = 0.33
+throttleStepPerSecond = 0.20
 ---
 maxOutputToEsc = 0.5
-minOutputToEsc = 0.02
+minOutputToEsc = 0.05
 
 statusLedOn :: IO ()
 statusLedOn = digitalWrite statusLedPin HIGH
