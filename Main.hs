@@ -25,6 +25,7 @@ data Inputs = Inputs {
   iDisconnected   :: Event (), 
 
   iJoystick       :: Event Throttle,
+  iBJoystick      :: Event Bool,
 
   iBUp            :: Event Bool,
   iBDown          :: Event Bool,
@@ -42,6 +43,7 @@ defaultInputs = Inputs {
   iDisconnected = NoEvent,
 
   iJoystick = NoEvent,
+  iBJoystick = NoEvent,
 
   iBUp = NoEvent,
   iBDown = NoEvent,
@@ -77,8 +79,11 @@ statusLedPin = Gpio 12
 pwmClock = 94
 pwmRange = 4096 :: PwmValue
 ---
--- rampedThrottleP = 0.55
-throttleStepPerSecond = 0.20
+ rampedThrottleP = 0.30
+--throttleStepPerSecond = 0.20
+---
+cruisingSpeedMaxOutput = 0.35
+fastSpeedMaxOutput = 0.5
 ---
 maxOutputToEsc = 0.5
 minOutputToEsc = 0.05
@@ -187,6 +192,8 @@ interpretInput (EvDev.AbsEvent _ axis val) = newInputs {
     abs_hat0x = EvDev.AbsAxis 16
     abs_hat0y = EvDev.AbsAxis 17
 interpretInput (EvDev.KeyEvent _ key state) = newInputs {
+    iBJoystick = check btn_joy,
+
     iBUp = check btn_up,
     iBDown = check btn_down,
     iBLeft = check btn_left,
@@ -203,6 +210,7 @@ interpretInput (EvDev.KeyEvent _ key state) = newInputs {
                       _ -> NoEvent
                 else NoEvent
 
+    btn_joy = EvDev.Key 314
     btn_up = EvDev.Key 306
     btn_down = EvDev.Key 305
     btn_left = EvDev.Key 304
@@ -226,14 +234,19 @@ outputsSignal = proc i -> do
 
   userConnected <- (arr $ not . isEvent) -< iDisconnected i
   userJoystickPosition <- hold 0.0 -< userJoystickEvent
-  userTrigger <- hold False -< iBTrigger i
-  userUp      <- hold False -< iBUp i
-  userLeft    <- hold False -< iBLeft i
-  userDown    <- hold False -< iBDown i
+  userJoystick <- hold False -< iBJoystick i
+  userTrigger  <- hold False -< iBTrigger i
+  userUp       <- hold False -< iBUp i
+  userLeft     <- hold False -< iBLeft i
+  userDown     <- hold False -< iBDown i
+
+  let chosenMaxSpeed = if not userJoystick
+                      then cruisingSpeedMaxOutput
+                      else fastSpeedMaxOutput
 
   rampedThrottle <- rampedThrottleSF 0.0 -< userJoystickPosition
   clampedThrottle <- arr $ clamp (0.0, 1.0) -< rampedThrottle
-  rescaledThrottle <- arr $ (0.0, 1.0) `rescale` (0.0, maxOutputToEsc) -< clampedThrottle
+  rescaledThrottle <- arr $ (0.0, 1.0) `rescale` (0.0, chosenMaxSpeed) -< clampedThrottle
   minFilteredThrottle <- arr $ (\throttle -> if throttle < minOutputToEsc
                                               then 0
                                               else throttle) -< rescaledThrottle
@@ -264,8 +277,8 @@ outputsSignal = proc i -> do
       rec
         let error = target - position
 
-        -- position <- integral -< (error * rampedThrottleP)
-        position <- integral -< (signum error * throttleStepPerSecond)
+        position <- integral -< (error * rampedThrottleP)
+        --position <- integral -< (signum error * throttleStepPerSecond)
 
       returnA -< position
 
