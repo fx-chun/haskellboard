@@ -79,7 +79,7 @@ statusLedPin = Gpio 12
 pwmClock = 94
 pwmRange = 4096 :: PwmValue
 ---
- rampedThrottleP = 0.30
+rampedThrottleP = 0.30
 --throttleStepPerSecond = 0.20
 ---
 cruisingSpeedMaxOutput = 0.35
@@ -241,15 +241,16 @@ outputsSignal = proc i -> do
   userDown     <- hold False -< iBDown i
 
   let chosenMaxSpeed = if not userJoystick
-                      then cruisingSpeedMaxOutput
-                      else fastSpeedMaxOutput
+                        then cruisingSpeedMaxOutput
+                        else fastSpeedMaxOutput
 
   rampedThrottle <- rampedThrottleSF 0.0 -< userJoystickPosition
   clampedThrottle <- arr $ clamp (0.0, 1.0) -< rampedThrottle
-  rescaledThrottle <- arr $ (0.0, 1.0) `rescale` (0.0, chosenMaxSpeed) -< clampedThrottle
+  rescaledThrottle <- maxSpeedRescalerSF -< (clampedThrottle, chosenMaxSpeed)
+  limitedThrottle <- arr $ clamp (0.0, maxOutputToEsc) -< rescaledThrottle
   minFilteredThrottle <- arr $ (\throttle -> if throttle < minOutputToEsc
                                               then 0
-                                              else throttle) -< rescaledThrottle
+                                              else throttle) -< limitedThrottle
   calculatedThrottle <- identity -< minFilteredThrottle
 
   actualOutput <- rSwitch (constant 0.0) -< 
@@ -271,6 +272,10 @@ outputsSignal = proc i -> do
   where
     clamp (mn, mx) = max mn . min mx
     rescale (mn, mx) (mn', mx') = (*) ((mx' - mn') / (mx - mn))
+
+    maxSpeedRescalerSF = arr $ (\ (throttle, max) -> 
+      (0.0, 1.0) `rescale` (0.0, max) $ throttle
+      )
 
     -- Throttle Signal Function constructors
     rampedThrottleSF initialThrottle = proc target -> do
