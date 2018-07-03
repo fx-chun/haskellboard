@@ -268,7 +268,7 @@ outputsSignal = proc i -> do
   returnA -< Outputs {
     oPrintBuffer = printMessageEvent `tag` (show actualOutput),
     oPWMOutput = round $ (* (fromIntegral pwmRange)) 
-                       $ (1.0 + actualOutput) ) / 20.0
+                       $ (1.0 + actualOutput) / 20.0
   }
   where
     clamp (mn, mx) = max mn . min mx
