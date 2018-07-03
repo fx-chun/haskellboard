@@ -82,8 +82,8 @@ pwmRange = 4096 :: PwmValue
 rampedThrottleP = 0.70
 --throttleStepPerSecond = 0.20
 ---
-cruisingSpeedMaxOutput = 0.25
-fastSpeedMaxOutput = 0.35
+cruisingSpeedMaxOutput = 0.2
+fastSpeedMaxOutput = 0.3
 ---
 maxOutputToEsc = 0.5
 minOutputToEsc = 0.05
@@ -268,7 +268,7 @@ outputsSignal = proc i -> do
   returnA -< Outputs {
     oPrintBuffer = printMessageEvent `tag` (show actualOutput),
     oPWMOutput = round $ (* (fromIntegral pwmRange)) 
-                       $ (1.0 + actualOutput) / 20.0
+                       $ (1.1 + actualOutput) / 20.0
   }
   where
     clamp (mn, mx) = max mn . min mx
