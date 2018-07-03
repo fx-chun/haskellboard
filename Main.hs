@@ -79,11 +79,11 @@ statusLedPin = Gpio 12
 pwmClock = 94
 pwmRange = 4096 :: PwmValue
 ---
-rampedThrottleP = 0.60
+rampedThrottleP = 0.70
 --throttleStepPerSecond = 0.20
 ---
 cruisingSpeedMaxOutput = 0.35
-fastSpeedMaxOutput = 0.42
+fastSpeedMaxOutput = 0.40
 ---
 maxOutputToEsc = 0.5
 minOutputToEsc = 0.05
@@ -268,7 +268,7 @@ outputsSignal = proc i -> do
   returnA -< Outputs {
     oPrintBuffer = printMessageEvent `tag` (show actualOutput),
     oPWMOutput = round $ (* (fromIntegral pwmRange)) 
-                       $ (1.1 + ((0.0, 1.0) `rescale` (0.0, 0.8) $ actualOutput) ) / 20.0
+                       $ (1.0 + actualOutput) ) / 20.0
   }
   where
     clamp (mn, mx) = max mn . min mx
