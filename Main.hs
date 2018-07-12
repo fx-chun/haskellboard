@@ -234,13 +234,15 @@ outputsSignal = proc i -> do
 
   userConnected <- (arr $ not . isEvent) -< iDisconnected i
   userJoystickPosition <- hold 0.0 -< userJoystickEvent
+
   userJoystick <- hold False -< iBJoystick i
   userTrigger  <- hold False -< iBTrigger i
+  userShoulder <- hold False -< iBShoulder i
   userUp       <- hold False -< iBUp i
   userLeft     <- hold False -< iBLeft i
   userDown     <- hold False -< iBDown i
 
-  let chosenMaxSpeed = if not userJoystick
+  let chosenMaxSpeed = if not userShoulder 
                         then cruisingSpeedMaxOutput
                         else fastSpeedMaxOutput
 
@@ -255,7 +257,7 @@ outputsSignal = proc i -> do
 
   actualOutput <- rSwitch (constant 0.0) -< 
     (NoEvent, 
-     fmap (\_ -> if userTrigger && userConnected
+     fmap (\_ -> if (userTrigger || userShoulder) && userConnected
                   then if | userUp     -> constant 1.0
                           | userLeft   -> constant 0.5
                           | userDown   -> constant 0.0
@@ -287,5 +289,3 @@ outputsSignal = proc i -> do
         --position <- integral -< (signum error * throttleStepPerSecond)
 
       returnA -< position
-
-    
