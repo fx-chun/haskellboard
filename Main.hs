@@ -7,7 +7,7 @@ import Data.Time.Clock
 import FRP.Yampa
 import FRP.Yampa.Geometry
 import Control.Arrow
-import Data.Map.Strict (!))
+import Data.Map.Strict ((!))
 import qualified Data.Map.Strict as Map
 
 import System.IO
