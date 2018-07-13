@@ -269,8 +269,8 @@ outputsSignal = proc i -> do
  
   let speed = 
         if | break                            -> Break 
-           | gas && $ userInputMap ! Shoulder -> FastSpeed
-           | gas && $ userInputMap ! Trigger  -> CruisingSpeed
+           | gas && userInputMap ! Shoulder -> FastSpeed
+           | gas && userInputMap ! Trigger  -> CruisingSpeed
            | otherwise                        -> Neutral 
 
   let normalTarget = 
