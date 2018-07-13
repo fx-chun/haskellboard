@@ -80,11 +80,11 @@ statusLedPin = Gpio 12
 pwmClock = 94
 pwmRange = 4096 :: PwmValue
 ---
-rampedThrottleP = 0.60
+rampedThrottleP = 0.70
 --throttleStepPerSecond = 0.20
 ---
-cruisingSpeedTarget = 0.20
-fastSpeedTarget = 0.30
+cruisingSpeedTarget = 0.25
+fastSpeedTarget = 0.37
 ---
 maxOutputToEsc = 0.5
 minOutputToEsc = 0.05
