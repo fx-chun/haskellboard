@@ -33,7 +33,7 @@ data Inputs = Inputs {
 
 data JoystickState = Up
                    | Down
-                   | Neutral deriving (Eq, Show)
+                   | Middle deriving (Eq, Show)
 
 data ButtonState = ButtonState Button Bool deriving (Eq, Show)
 
