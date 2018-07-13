@@ -24,16 +24,23 @@ data Inputs = Inputs {
   iNewUpdate      :: Event (),
   iDisconnected   :: Event (), 
 
-  iJoystick       :: Event Throttle,
-  iBJoystick      :: Event Bool,
-
-  iBUp            :: Event Bool,
-  iBDown          :: Event Bool,
-  iBLeft          :: Event Bool,
-  iBRight         :: Event Bool,
-  iBTrigger       :: Event Bool,
-  iBShoulder      :: Event Bool
+  iJoystick       :: Event JoystickState,
+  iButton         :: Event ButtonState
 } deriving (Show)
+
+data JoystickState = Up
+                   | Down
+                   | Neutral deriving (Eq, Show)
+
+data ButtonState = ButtonState Button Bool deriving (Eq, Show)
+
+data Button = Trigger Bool
+              | Shoulder Bool
+              | Joystick Bool
+              | DUp Bool
+              | DDown Bool
+              | DLeft Bool
+              | DRight Bool deriving (Eq, Show)
 
 data MaybeRawEvents = InputDisconnected
                     | RawInput EvDev.Event
@@ -43,14 +50,7 @@ defaultInputs = Inputs {
   iDisconnected = NoEvent,
 
   iJoystick = NoEvent,
-  iBJoystick = NoEvent,
-
-  iBUp = NoEvent,
-  iBDown = NoEvent,
-  iBLeft = NoEvent,
-  iBRight = NoEvent,
-  iBTrigger = NoEvent,
-  iBShoulder = NoEvent
+  iButton = NoEvent
 }
 
 newInputs = defaultInputs {
@@ -71,8 +71,6 @@ defaultOutputs = Outputs {
   oPWMOutput = 0
 } 
 
-type Throttle = Double
-
 ---
 pwmPin = Gpio 18
 statusLedPin = Gpio 12
@@ -82,8 +80,8 @@ pwmRange = 4096 :: PwmValue
 rampedThrottleP = 0.70
 --throttleStepPerSecond = 0.20
 ---
-cruisingSpeedMaxOutput = 0.25
-fastSpeedMaxOutput = 0.3
+cruisingSpeedTarget = 0.25
+fastSpeedTarget = 0.3
 ---
 maxOutputToEsc = 0.5
 minOutputToEsc = 0.05
@@ -183,87 +181,97 @@ interpretInput (EvDev.AbsEvent _ axis val) = newInputs {
   iJoystick =
     if axis == abs_hat0x
       then Event $ case compare val 0 of
-                    LT -> 1.0
-                    GT -> -1.0
-                    EQ -> 0
+                    LT -> Up
+                    GT -> Down 
+                    EQ -> Neutral 
       else NoEvent
 }
   where
     abs_hat0x = EvDev.AbsAxis 16
     abs_hat0y = EvDev.AbsAxis 17
+
 interpretInput (EvDev.KeyEvent _ key state) = newInputs {
-    iBJoystick = check btn_joy,
-
-    iBUp = check btn_up,
-    iBDown = check btn_down,
-    iBLeft = check btn_left,
-    iBRight = check btn_right,
-
-    iBTrigger = check btn_trigger,
-    iBShoulder = check btn_shoulder
+    iButton = buttonEvent
 }
   where
-    check x = if key == x 
+    map' x y = if key == x 
                 then case state of
-                      EvDev.Depressed -> Event True
-                      EvDev.Released -> Event False
+                      EvDev.Depressed -> Event (ButtonState y True)
+                      EvDev.Released  -> Event (ButtonState y False)
                       _ -> NoEvent
                 else NoEvent
 
-    btn_joy = EvDev.Key 314
-    btn_up = EvDev.Key 306
-    btn_down = EvDev.Key 305
-    btn_left = EvDev.Key 304
-    btn_right = EvDev.Key 307
-    btn_trigger = EvDev.Key 319
-    btn_shoulder = EvDev.Key 318
+    buttonEvent = mergeEvents 
+      [
+        map' (EvDev.Key 319) Trigger,
+        map' (EvDev.Key 318) Shoulder,
+        map' (EvDev.Key 314) Joystick,
+        map' (EvDev.Key 306) DUp,
+        map' (EvDev.Key 305) DDown,
+        map' (EvDev.Key 304) DLeft,
+        map' (EvDev.Key 307) DRight
+      ]
+
 interpretInput _ = defaultInputs
 
 actuate :: Bool -> Outputs -> IO Bool
 actuate _ outputs = do
   if isEvent $ oPrintBuffer outputs
-    then do 
+    then do
       putStrLn $ fromEvent $ oPrintBuffer outputs
       pwmWrite pwmPin $ oPWMOutput outputs
     else return ()
   return False
 
+data ThrottleTargets = NoPower
+                     | CruisingSpeed
+                     | FastSpeed       deriving (Show)
+
 outputsSignal :: SF Inputs Outputs
 outputsSignal = proc i -> do
-  let userJoystickEvent = iJoystick i
+  -- Normal Mode
+  gas <-
+    hold False 
+    << arr $ fmap (== Up) 
+    -< iJoystick i
+ 
+  speed <-
+    hold NoPower
+    << arr $ (\b -> if | isDown Shoulder b -> FastSpeed
+                       | isDown Trigger b  -> CruisingSpeed
+                       | otherwise         -> NoPower)
+    -< iButton i
 
-  userConnected <- (arr $ not . isEvent) -< iDisconnected i
-  userJoystickPosition <- hold 0.0 -< userJoystickEvent
+  let normalTarget = 
+        case speed of
+          NoPower       -> 0.0
+          CruisingSpeed -> cruisingSpeedTarget
+          FastSpeed     -> fastSpeedTarget
 
-  userJoystick <- hold False -< iBJoystick i
-  userTrigger  <- hold False -< iBTrigger i
-  userShoulder <- hold False -< iBShoulder i
-  userUp       <- hold False -< iBUp i
-  userLeft     <- hold False -< iBLeft i
-  userDown     <- hold False -< iBDown i
+  normalOutput <- rampedThrottleSF -< normalTarget
 
-  let chosenMaxSpeed = if not userShoulder 
-                        then cruisingSpeedMaxOutput
-                        else fastSpeedMaxOutput
+  -- Programming Mode
 
-  rampedThrottle <- rampedThrottleSF 0.0 -< userJoystickPosition
-  clampedThrottle <- arr $ clamp (0.0, 1.0) -< rampedThrottle
-  rescaledThrottle <- maxSpeedRescalerSF -< (clampedThrottle, chosenMaxSpeed)
-  limitedThrottle <- arr $ clamp (0.0, maxOutputToEsc) -< rescaledThrottle
-  minFilteredThrottle <- arr $ (\throttle -> if throttle < minOutputToEsc
-                                              then 0
-                                              else throttle) -< limitedThrottle
-  calculatedThrottle <- identity -< minFilteredThrottle
+  programmingMode <-
+    accumHoldBy (\acc _ -> not acc) False
+    << filterE (== (ButtonState DRight True))
+    -< iButton i
 
-  actualOutput <- rSwitch (constant 0.0) -< 
-    (NoEvent, 
-     fmap (\_ -> if (userTrigger || userShoulder) && userConnected
-                  then if | userUp     -> constant 1.0
-                          | userLeft   -> constant 0.5
-                          | userDown   -> constant 0.0
-                          | otherwise  -> arr $ (\_ -> calculatedThrottle)
-                  else constant 0.0) (iNewUpdate i)
-    )
+  programmingOutput <-
+    hold 0.0
+    << arr $ (\b -> if | isDown DUp b   -> 1.0
+                       | isDown DLeft b -> 0.5
+                       | isDown DDown b -> 0.0)
+    -< iButton i
+  
+  let output = 
+        if | not programmingMode && gas -> normalOutput
+           | programmingMode            -> programmingOutput
+           | otherwise                  -> 0.0
+      actualOutput = id
+                     $ (\x -> if x < minOutputToEsc then 0.0 else x)
+                     $ clamp (0, maxOutputToEsc)
+                     $ output
 
   printMessageEvent <- repeatedly 0.3 () -< ()
 
@@ -276,12 +284,12 @@ outputsSignal = proc i -> do
     clamp (mn, mx) = max mn . min mx
     rescale (mn, mx) (mn', mx') = (*) ((mx' - mn') / (mx - mn))
 
-    maxSpeedRescalerSF = arr $ (\ (throttle, max) -> 
-      (0.0, 1.0) `rescale` (0.0, max) $ throttle
-      )
+    isDown button = aux
+      where
+        aux (Event (ButtonState button x)) = Event x
+        aux _ = NoEvent
 
-    -- Throttle Signal Function constructors
-    rampedThrottleSF initialThrottle = proc target -> do
+    rampedThrottleSF = proc target -> do
       rec
         let error = target - position
 
