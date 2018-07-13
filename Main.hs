@@ -83,11 +83,11 @@ pwmRange = 4096 :: PwmValue
 rampedThrottleP = 0.70
 --throttleStepPerSecond = 0.20
 ---
-cruisingSpeedTarget = 0.25
-fastSpeedTarget = 0.3
+cruisingSpeedTarget = 0.15
+fastSpeedTarget = 0.20
 ---
 maxOutputToEsc = 0.5
-minOutputToEsc = 0.05
+minOutputToEsc = 0.03
 
 statusLedOn :: IO ()
 statusLedOn = digitalWrite statusLedPin HIGH
@@ -287,6 +287,7 @@ outputsSignal = proc i -> do
       actualOutput = id
                      $ (\x -> if x < minOutputToEsc then 0.0 else x)
                      $ clamp (0, maxOutputToEsc)
+                     $ (0.0) `rescale` (0.0, 0.7)
                      $ output
 
   printMessageEvent <- repeatedly 0.3 () -< ()
