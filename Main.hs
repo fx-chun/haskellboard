@@ -255,9 +255,9 @@ outputsSignal = proc i -> do
     -< iJoystick i
  
   let speed = 
-    if | userInputMap ! Shoulder -> FastSpeed
-       | userInputMap ! Trigger  -> CruisingSpeed
-       | otherwise               -> NoPower
+        if | userInputMap ! Shoulder -> FastSpeed
+           | userInputMap ! Trigger  -> CruisingSpeed
+           | otherwise               -> NoPower
 
   let normalTarget = 
         case speed of
@@ -274,9 +274,9 @@ outputsSignal = proc i -> do
     -< filterE (== (ButtonState DRight True)) $ iButton i
 
   let programmingOutput = 
-    if | userInputMap ! DUp   -> 1.0
-       | userInputMap ! DLeft -> 0.5
-       | userInputMap ! DDown -> 0.0
+        if | userInputMap ! DUp   -> 1.0
+           | userInputMap ! DLeft -> 0.5
+           | userInputMap ! DDown -> 0.0
   
   let output = 
         if | not programmingMode && gas -> normalOutput
