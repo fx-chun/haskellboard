@@ -278,6 +278,7 @@ outputsSignal = proc i -> do
         if | userInputMap ! DUp   -> 1.0
            | userInputMap ! DLeft -> 0.5
            | userInputMap ! DDown -> 0.0
+           | otherwise            -> 0.0
   
   let output = 
         if | not programmingMode && gas -> normalOutput
