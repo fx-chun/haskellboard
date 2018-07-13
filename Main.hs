@@ -83,8 +83,8 @@ pwmRange = 4096 :: PwmValue
 rampedThrottleP = 0.70
 --throttleStepPerSecond = 0.20
 ---
-cruisingSpeedTarget = 0.15
-fastSpeedTarget = 0.20
+cruisingSpeedTarget = 0.32
+fastSpeedTarget = 0.40
 ---
 maxOutputToEsc = 0.5
 minOutputToEsc = 0.05
