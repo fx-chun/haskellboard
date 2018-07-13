@@ -7,8 +7,8 @@ import Data.Time.Clock
 import FRP.Yampa
 import FRP.Yampa.Geometry
 import Control.Arrow
-import Data.Map ((!))
-import qualified Data.Map as Map
+import Data.Map.Strict (!))
+import qualified Data.Map.Strict as Map
 
 import System.IO
 import System.IO.Error
@@ -66,7 +66,7 @@ resetInputs = defaultInputs {
 
 data Outputs = Outputs { 
   oPrintBuffer :: Event [Char],
-  oPWMOutput :: PwmValue
+  oPWMOutput :: !PwmValue
 } deriving (Show)
 
 defaultOutputs = Outputs {
@@ -84,7 +84,7 @@ rampedThrottleP = 0.70
 --throttleStepPerSecond = 0.20
 ---
 cruisingSpeedTarget = 0.25
-fastSpeedTarget = 0.45
+fastSpeedTarget = 0.37
 ---
 maxOutputToEsc = 0.5
 minOutputToEsc = 0.05
@@ -303,7 +303,10 @@ outputsSignal = proc i -> do
 
     isDown button inputs = aux $ iButton inputs
       where
-        aux (Event (ButtonState button x)) = Event x
+        aux (Event (ButtonState button' x)) = 
+          if button == button' 
+            then Event x
+            else NoEvent
         aux _ = NoEvent
 
     rampedThrottleSF = proc target -> do
