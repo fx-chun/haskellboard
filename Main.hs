@@ -87,7 +87,7 @@ cruisingSpeedTarget = 0.15
 fastSpeedTarget = 0.20
 ---
 maxOutputToEsc = 0.5
-minOutputToEsc = 0.03
+minOutputToEsc = 0.05
 
 statusLedOn :: IO ()
 statusLedOn = digitalWrite statusLedPin HIGH
@@ -285,9 +285,9 @@ outputsSignal = proc i -> do
            | programmingMode            -> programmingOutput
            | otherwise                  -> 0.0
       actualOutput = id
+                     $ (0.0, 1.0) `rescale` (0.0, 0.7)
                      $ (\x -> if x < minOutputToEsc then 0.0 else x)
                      $ clamp (0, maxOutputToEsc)
-                     $ (0.0, 1.0) `rescale` (0.0, 0.7)
                      $ output
 
   printMessageEvent <- repeatedly 0.3 () -< ()
