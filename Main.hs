@@ -83,8 +83,8 @@ pwmRange = 4096 :: PwmValue
 rampedThrottleP = 0.70
 --throttleStepPerSecond = 0.20
 ---
-cruisingSpeedTarget = 0.25
-fastSpeedTarget = 0.37
+cruisingSpeedTarget = 0.15
+fastSpeedTarget = 0.35
 ---
 maxOutputToEsc = 0.5
 minOutputToEsc = 0.05
@@ -226,8 +226,15 @@ actuate _ outputs = do
     else return ()
   return False
 
-data ThrottleTargets = NoPower
-                     | CruisingSpeed
+-- note: our esc does not have a programmable break
+-- so to "break" means to bring the power down to 0 very quickly
+-- by setting the target to a negative value
+-- as opposed to slowly bringing the power down in "neutral"
+-- by having the target be 0
+
+data ThrottleTargets = Break 
+                     | Neutral
+                     | CruisingSpeed 
                      | FastSpeed       deriving (Show)
 
 outputsSignal :: SF Inputs Outputs
@@ -254,14 +261,21 @@ outputsSignal = proc i -> do
     hold False 
     <<< (arr $ fmap (== Up))
     -< iJoystick i
+
+  break <-
+    hold True 
+    <<< (arr $ fmap (== Down))
+    -< iJoystick i
  
   let speed = 
-        if | userInputMap ! Shoulder -> FastSpeed
-           | userInputMap ! Trigger  -> CruisingSpeed
-           | otherwise               -> NoPower
+        if | break                            -> Break 
+           | gas && $ userInputMap ! Shoulder -> FastSpeed
+           | gas && $ userInputMap ! Trigger  -> CruisingSpeed
+           | otherwise                        -> Neutral 
 
   let normalTarget = 
         case speed of
+          Break         -> (-0.5)
           NoPower       -> 0.0
           CruisingSpeed -> cruisingSpeedTarget
           FastSpeed     -> fastSpeedTarget
@@ -281,7 +295,7 @@ outputsSignal = proc i -> do
            | otherwise            -> 0.0
   
   let output = 
-        if | not programmingMode && gas -> normalOutput
+        if | not programmingMode        -> normalOutput
            | programmingMode            -> programmingOutput
            | otherwise                  -> 0.0
       actualOutput = id
