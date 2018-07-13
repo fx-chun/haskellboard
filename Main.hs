@@ -7,6 +7,7 @@ import Data.Time.Clock
 import FRP.Yampa
 import FRP.Yampa.Geometry
 import Control.Arrow
+import qualified Data.Map as Map
 
 import System.IO
 import System.IO.Error
@@ -230,19 +231,33 @@ data ThrottleTargets = NoPower
 
 outputsSignal :: SF Inputs Outputs
 outputsSignal = proc i -> do
+  let userInputMap = Map.fromList
+        [
+          (Shoulder, isShoulderDown),
+          (Trigger, isTriggerDown),
+          (DUp, isDUpDown),
+          (DDown, isDDownDown),
+          (DLeft, isDLeftDown),
+          (DRight, isDRightDown)
+        ]
+
+  isShoulderDown <- hold False -< isDown Shoulder
+  isTriggerDown  <- hold False -< isDown Trigger
+  isDUpDown      <- hold False -< isDown DUp
+  isDDownDown    <- hold False -< isDown DDown
+  isDLeftDown    <- hold False -< isDown DLeft
+  isDRightDown   <- hold False -< isDown DRight
+
   -- Normal Mode
   gas <-
     hold False 
     <<< (arr $ fmap (== Up))
     -< iJoystick i
  
-  speed <-
-    hold NoPower
-    <<< (arr $ fmap
-    (\b -> if | isDown Shoulder b -> FastSpeed
-              | isDown Trigger b  -> CruisingSpeed
-              | otherwise         -> NoPower))
-    -< iButton i
+  let speed = 
+    if | userInputMap ! Shoulder -> FastSpeed
+       | userInputMap ! Trigger  -> CruisingSpeed
+       | otherwise               -> NoPower
 
   let normalTarget = 
         case speed of
@@ -256,16 +271,12 @@ outputsSignal = proc i -> do
 
   programmingMode <-
     accumHoldBy (\acc _ -> not acc) False
-    <<< (filterE (== (ButtonState DRight True)))
-    -< iButton i
+    -< filterE (== (ButtonState DRight True)) $ iButton i
 
-  programmingOutput <-
-    hold 0.0
-    <<< (arr $ fmap
-    (\b -> if | isDown DUp b   -> 1.0
-              | isDown DLeft b -> 0.5
-              | isDown DDown b -> 0.0))
-    -< iButton i
+  let programmingOutput = 
+    if | userInputMap ! DUp   -> 1.0
+       | userInputMap ! DLeft -> 0.5
+       | userInputMap ! DDown -> 0.0
   
   let output = 
         if | not programmingMode && gas -> normalOutput
@@ -287,7 +298,7 @@ outputsSignal = proc i -> do
     clamp (mn, mx) = max mn . min mx
     rescale (mn, mx) (mn', mx') = (*) ((mx' - mn') / (mx - mn))
 
-    isDown button = aux
+    isDown button inputs = aux $ iButton inputs
       where
         aux (Event (ButtonState button x)) = Event x
         aux _ = NoEvent
