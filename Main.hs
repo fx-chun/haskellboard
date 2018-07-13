@@ -186,7 +186,7 @@ interpretInput (EvDev.AbsEvent _ axis val) = newInputs {
       then Event $ case compare val 0 of
                     LT -> Up
                     GT -> Down 
-                    EQ -> Neutral 
+                    EQ -> Middle 
       else NoEvent
 }
   where
@@ -276,7 +276,7 @@ outputsSignal = proc i -> do
   let normalTarget = 
         case speed of
           Break         -> (-0.5)
-          NoPower       -> 0.0
+          Neutral       -> 0.0
           CruisingSpeed -> cruisingSpeedTarget
           FastSpeed     -> fastSpeedTarget
 
