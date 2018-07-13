@@ -7,6 +7,7 @@ import Data.Time.Clock
 import FRP.Yampa
 import FRP.Yampa.Geometry
 import Control.Arrow
+import Data.Map ((!))
 import qualified Data.Map as Map
 
 import System.IO
@@ -231,6 +232,13 @@ data ThrottleTargets = NoPower
 
 outputsSignal :: SF Inputs Outputs
 outputsSignal = proc i -> do
+  isShoulderDown <- hold False -< isDown Shoulder i
+  isTriggerDown  <- hold False -< isDown Trigger i
+  isDUpDown      <- hold False -< isDown DUp i
+  isDDownDown    <- hold False -< isDown DDown i
+  isDLeftDown    <- hold False -< isDown DLeft i
+  isDRightDown   <- hold False -< isDown DRight i
+
   let userInputMap = Map.fromList
         [
           (Shoulder, isShoulderDown),
@@ -240,13 +248,6 @@ outputsSignal = proc i -> do
           (DLeft, isDLeftDown),
           (DRight, isDRightDown)
         ]
-
-  isShoulderDown <- hold False -< isDown Shoulder
-  isTriggerDown  <- hold False -< isDown Trigger
-  isDUpDown      <- hold False -< isDown DUp
-  isDDownDown    <- hold False -< isDown DDown
-  isDLeftDown    <- hold False -< isDown DLeft
-  isDRightDown   <- hold False -< isDown DRight
 
   -- Normal Mode
   gas <-
