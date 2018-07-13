@@ -43,7 +43,7 @@ data Button = Trigger
             | DUp 
             | DDown 
             | DLeft 
-            | DRight deriving (Eq, Show)
+            | DRight deriving (Eq, Show, Ord)
 
 data MaybeRawEvents = InputDisconnected
                     | RawInput EvDev.Event
@@ -293,7 +293,7 @@ outputsSignal = proc i -> do
   returnA -< Outputs {
     oPrintBuffer = printMessageEvent `tag` (show actualOutput),
     oPWMOutput = round $ (* (fromIntegral pwmRange)) 
-                       $ (1.1 + actualOutput) / 20.0
+                       $ (1.1 + actualOutput) / (20.0 :: Double)
   }
   where
     clamp (mn, mx) = max mn . min mx
