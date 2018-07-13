@@ -84,7 +84,7 @@ rampedThrottleP = 0.70
 --throttleStepPerSecond = 0.20
 ---
 cruisingSpeedTarget = 0.25
-fastSpeedTarget = 0.37
+fastSpeedTarget = 0.45
 ---
 maxOutputToEsc = 0.5
 minOutputToEsc = 0.05
