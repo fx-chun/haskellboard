@@ -287,7 +287,7 @@ outputsSignal = proc i -> do
       actualOutput = id
                      $ (\x -> if x < minOutputToEsc then 0.0 else x)
                      $ clamp (0, maxOutputToEsc)
-                     $ (0.0) `rescale` (0.0, 0.7)
+                     $ (0.0, 1.0) `rescale` (0.0, 0.7)
                      $ output
 
   printMessageEvent <- repeatedly 0.3 () -< ()
