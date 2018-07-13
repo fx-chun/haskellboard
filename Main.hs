@@ -233,15 +233,15 @@ outputsSignal = proc i -> do
   -- Normal Mode
   gas <-
     hold False 
-    <<< arr $ fmap (== Up) 
+    <<< (arr $ fmap (== Up))
     -< iJoystick i
  
   speed <-
     hold NoPower
-    <<< arr . fmap
-    $ (\b -> if | isDown Shoulder b -> FastSpeed
-                | isDown Trigger b  -> CruisingSpeed
-                | otherwise         -> NoPower)
+    <<< (arr $ fmap
+    (\b -> if | isDown Shoulder b -> FastSpeed
+              | isDown Trigger b  -> CruisingSpeed
+              | otherwise         -> NoPower))
     -< iButton i
 
   let normalTarget = 
@@ -256,15 +256,15 @@ outputsSignal = proc i -> do
 
   programmingMode <-
     accumHoldBy (\acc _ -> not acc) False
-    <<< filterE (== (ButtonState DRight True))
+    <<< (filterE (== (ButtonState DRight True)))
     -< iButton i
 
   programmingOutput <-
     hold 0.0
-    <<< arr . fmap
-    $ (\b -> if | isDown DUp b   -> 1.0
-                | isDown DLeft b -> 0.5
-                | isDown DDown b -> 0.0)
+    <<< (arr $ fmap
+    (\b -> if | isDown DUp b   -> 1.0
+              | isDown DLeft b -> 0.5
+              | isDown DDown b -> 0.0))
     -< iButton i
   
   let output = 
