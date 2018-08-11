@@ -1,4 +1,4 @@
-[Haskellboard](https://lolc.at/assets/img/haskellboard/header.png)
+![Haskellboard](https://lolc.at/assets/img/haskellboard/header.png)
 
 Control an electric longboard using a Joy-Con on the Raspberry Pi.
 
