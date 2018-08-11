@@ -3,7 +3,7 @@
 
 name:                haskellboard
 version:             0.1.0.0
--- synopsis:
+synopsis:            Control a PWM output using a Nintendo Joy-Con Controller
 -- description:
 license:             MIT
 license-file:        LICENSE
